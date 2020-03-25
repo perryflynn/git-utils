@@ -67,15 +67,32 @@ Some operations like deleting an orphaned branch can affect the current working 
 So this option creates an temporary branch and checks it out. After all other operations
 are done, the previous branch is checked out again and the temporary branch is deleted.
 
+```sh
+# create and checkout a new branch
+git checkout -b "temporary-branch-name"
+```
+
 ### Fetch changes from remote (`-f`)
 
 This option fetches all new changes from all remotes but will **not** merge them
 into the local branches.
 
+```sh
+# fetch all changes into origin/* branches
+git fetch --all --prune --tags
+```
+
 ### Link local and remote branches (`-l`)
 
 This option will set an upstream branch on a local branch if an unlinked remote
 branch with the same name exists.
+
+```sh
+# find not tracking branches
+# find untracked remote branches with the same name
+# link them:
+git branch -u origin/master master
+```
 
 ### Integrate changes into local branches (`-p`)
 
@@ -83,6 +100,11 @@ This option merges all changes from the remote branch (`origin/*`) into the loca
 branches. This does not affect the currently checked out branch.
 
 So no need to stop running development servers or whatever.
+
+```sh
+# merge changes from origin/master into master without a checkout
+git fetch origin master:master
+```
 
 ### Delete orphaned branches (`-d`)
 
@@ -93,13 +115,32 @@ This option helps to clean up your own local development repo.
 
 Also it **will ask you** for each branch whether you are really sure.
 
+```sh
+# find orphaned branches
+git branch -vv --format "%(refname:short)%09%(upstream:short)%09%(upstream:track)%09" | grep -P '\t\[gone\]\t$'
+# delete branch
+git branch -D orphaned_branch
+```
+
 ### Push local changes (`-p`)
 
 Pushes all local changes to the tracked remote branch.
 
+```sh
+# push changes to remote without a checkout
+git push origin master:master
+```
+
 ### Show a summary (`-s`)
 
 Shows the current status of all local and remote branches.
+
+```sh
+# show local branches
+git branch -vv
+# show remote branches
+git branch -vv -r
+```
 
 ### Example output
 
