@@ -70,6 +70,8 @@ are done, the previous branch is checked out again and the temporary branch is d
 ```sh
 # create and checkout a new branch
 git checkout -b "temporary-branch-name"
+# check if a branch still exists
+git rev-parse --quiet --verify master
 ```
 
 ### Fetch changes from remote (`-f`)
