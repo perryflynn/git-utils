@@ -68,7 +68,7 @@ multiquestion() {
         # was the answer 'all'?
         if [ "$answer" == "2" ]
         then
-            declare ${allvar}=2
+            declare -g ${allvar}=2
             return 0
         else
             return $answer
