@@ -36,6 +36,21 @@ fi
 
 
 #
+# -> update HEAD reference / main branch
+#
+
+if [ "$ARG_HEAD" -eq 1 ]
+then
+    # Workflow:
+    # - update the HEAD ref from the given remote to set the main branch
+
+    action "Update main branch from remote '$ARG_REMOTE'"
+    { git remote set-head "$ARG_REMOTE" --auto 2>&3 | output; } 3>&1 1>&2 | error
+
+fi
+
+
+#
 # -> link local branches and remote branches
 #
 

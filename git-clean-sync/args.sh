@@ -4,12 +4,14 @@
 
 ARG_TEMPBRANCH=0
 ARG_FETCH=0
+ARG_HEAD=0
 ARG_LINK=0
 ARG_PULL=0
 ARG_DELORPHANED=0
 ARG_PUSH=0
 ARG_SUMMARY=0
 ARG_FORCE=0
+ARG_REMOTE=origin
 ARG_HELP=0
 UNKNOWN_OPTION=0
 
@@ -21,6 +23,7 @@ then
         case $key in
             -a|--all-pull)
                 ARG_FETCH=1
+                ARG_HEAD=1
                 ARG_LINK=1
                 ARG_PULL=1
                 ARG_DELORPHANED=1
@@ -28,6 +31,7 @@ then
                 ;;
             -aa|--all-twoway)
                 ARG_FETCH=1
+                ARG_HEAD=1
                 ARG_LINK=1
                 ARG_PULL=1
                 ARG_DELORPHANED=1
@@ -37,6 +41,7 @@ then
             -aaa|--all-full)
                 ARG_TEMPBRANCH=1
                 ARG_FETCH=1
+                ARG_HEAD=1
                 ARG_LINK=1
                 ARG_PULL=1
                 ARG_DELORPHANED=1
@@ -48,6 +53,9 @@ then
                 ;;
             -f|--fetch)
                 ARG_FETCH=1
+                ;;
+            --head)
+                ARG_HEAD=1
                 ;;
             -l|--link)
                 ARG_LINK=1
@@ -63,6 +71,10 @@ then
                 ;;
             -s|--summary)
                 ARG_SUMMARY=1
+                ;;
+            -r|--remote)
+                ARG_REMOTE=$2
+                shift
                 ;;
             --force)
                 ARG_FORCE=1

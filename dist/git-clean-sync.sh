@@ -4,6 +4,9 @@
 # License: MIT
 # https://github.com/perryflynn/git-utils
 
+set -u
+
+
 
 #
 # -> Functions
@@ -86,7 +89,7 @@ multiquestion() {
 # execute the callback function for each tracking branch
 execon_trackingbranches() {
     local command=$1
-    local runcondition=$2
+    local runcondition=${2:-}
 
     input "git branch -vv"
 
@@ -99,7 +102,7 @@ execon_trackingbranches() {
         tracked_count=0
     fi
 
-    info "Found $tracked_count tracked branches: $tracked_oneline"
+    info "Found $tracked_count tracked local branches: $tracked_oneline"
 
     # execute run condition check
     if [ ! -z "$runcondition" ] && type -t $runcondition 2>&1 > /dev/null
@@ -129,7 +132,7 @@ execon_trackingbranches() {
 # execute the callback function for each untracked branch
 execon_untrackedbranches() {
     local command=$1
-    local runcondition=$2
+    local runcondition=${2:-}
 
     input "git branch -vv"
     untracked=$(git branch -vv --format "%(refname:short)%09%(upstream:remotename)%09%(upstream:lstrip=3)%09%(upstream:track)%09" | grep -v -P "^.+\t.+\t.+\t$")
@@ -141,6 +144,8 @@ execon_untrackedbranches() {
     if [ $untracked_result -ne 0 ]; then
         untracked_count=0
     fi
+
+    info "Found $untracked_count untracked local branches: $untracked_oneline"
 
     # execute run condition check
     if [ ! -z "$runcondition" ] && type -t $runcondition 2>&1 > /dev/null
@@ -165,6 +170,128 @@ execon_untrackedbranches() {
     done
 }
 
+execon_untrackedremotebranches() {
+    local command=$1
+
+    # get tracking remote branched
+    input "git branch -vv"
+
+    tracked=$(git branch -vv --format "%(refname:short)%09%(upstream:remotename)%09%(upstream:lstrip=2)%09%(upstream:track)%09" | grep -P '^[^\t]+\t[^\t]+\t' | grep -v -P '\t\[gone\]\t$')
+    tracked_result=$?
+    tracked_count=$(echo "$tracked" | wc -l)
+
+    if [ $tracked_result -ne 0 ]; then
+        tracked_count=0
+    fi
+
+    # get untracked remote branches
+    untrackedremotes=""
+    untrackedremotes_count=0
+    untrackedremotes_result=1
+    
+    if [ $tracked_count -gt 0 ]; then
+        # remove tracked remote branches from the remote branches list
+        tracked_regex=$(echo "$tracked" | awk '{print $3}' | sed -z 's/\n/|/g' | sed -r 's/[ |]+$//g')
+
+        # get remote branched and remove all tracked by local branches
+        input "git branch -r -vv"
+
+        untrackedremotes=$(git branch -r -vv --format "%(refname:lstrip=2)" | grep -v -P "/HEAD$" | grep -v -P "^($tracked_regex)$")
+        untrackedremotes_result=$?
+        untrackedremotes_count=$(echo "$untrackedremotes" | wc -l)
+    else
+        # no tracked remote branches, use all remote branches
+        untrackedremotes=$(git branch -r -vv --format "%(refname:lstrip=2)" | grep -v -P "/HEAD$")
+        untrackedremotes_result=$?
+        untrackedremotes_count=$(echo "$untrackedremotes" | wc -l)
+    fi
+
+    if [ $untrackedremotes_result -ne 0 ]; then
+        untrackedremotes_count=0
+    fi
+
+    untrackedremotes_oneline=$(echo "$untrackedremotes" | sed -z 's/\n/, /g' | sed -r 's/[ ,]+$//g')
+    info "Found $untrackedremotes_count untracked remote branches: $untrackedremotes_oneline"
+
+    # loop all tracked branches
+    I=1
+
+    while [ $I -le $untrackedremotes_count ]
+    do
+        branchinfo=$(echo "$untrackedremotes" | tail -n +$I | head -n 1 | sed -re 's|^([^/]+)/(.*)$|\1\t\2|g')
+        remotename=$(echo "$branchinfo" | awk '{print $1}')
+        branchname=$(echo "$branchinfo" | awk '{print $2}')
+
+        # execute callback function with branch
+        $command "$remotename" "$branchname"
+
+        I=$(($I+1))
+    done
+}
+
+execon_localbranches() {
+    local command=$1
+    local runcondition=${2:-}
+
+    input "git branch -vv"
+
+    branches=$(git branch -vv --format "%(refname:short)%09" | grep -P '^[^\t]+\t')
+    branches_result=$?
+    branches_oneline=$(echo "$branches" | awk '{print $1}' | sed -z 's/\n/, /g' | sed -r 's/[ ,]+$//g')
+    branches_count=$(echo "$branches" | wc -l)
+
+    if [ $branches_result -ne 0 ]; then
+        branches_count=0
+    fi
+
+    info "Found $branches_count local branches: $branches_oneline"
+
+    # execute run condition check
+    if [ ! -z "$runcondition" ] && type -t $runcondition 2>&1 > /dev/null
+    then
+        if $runcondition "$branches_result" "$branches_count" "$branches" "$branches_oneline"
+        then
+            return 1
+        fi
+    fi
+
+    # loop all local branches
+    I=1
+    while [ $I -le $branches_count ]
+    do
+        branchline=$(echo "$branches" | tail -n +$I | head -n 1)
+        branchname=$(echo "$branchline" | awk '{print $1}')
+
+        # execute the given command for each tracking branch
+        $command "$branchname"
+
+        I=$(($I+1))
+    done
+}
+
+isreforphaned() {
+    local ref=$1
+    local maxageindays=$2
+
+    now=$(date +%s)
+    maxage=$(( $now - (60 * 60 * 24 * $maxageindays) ))
+
+    branchage=$(git show --quiet --format="%ct" "$ref" | tr -d ' \n\r\t')
+    
+    date -d "@$branchage" "+%Y-%m-%dT%H:%M"
+
+    if [ $branchage -lt $maxage ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+mainbranch() {
+    local remote=$1
+    git symbolic-ref "refs/remotes/$remote/HEAD" | sed "s@^refs/remotes/$remote/@@"
+}
+
 
 
 #
@@ -173,12 +300,14 @@ execon_untrackedbranches() {
 
 ARG_TEMPBRANCH=0
 ARG_FETCH=0
+ARG_HEAD=0
 ARG_LINK=0
 ARG_PULL=0
 ARG_DELORPHANED=0
 ARG_PUSH=0
 ARG_SUMMARY=0
 ARG_FORCE=0
+ARG_REMOTE=origin
 ARG_HELP=0
 UNKNOWN_OPTION=0
 
@@ -190,6 +319,7 @@ then
         case $key in
             -a|--all-pull)
                 ARG_FETCH=1
+                ARG_HEAD=1
                 ARG_LINK=1
                 ARG_PULL=1
                 ARG_DELORPHANED=1
@@ -197,6 +327,7 @@ then
                 ;;
             -aa|--all-twoway)
                 ARG_FETCH=1
+                ARG_HEAD=1
                 ARG_LINK=1
                 ARG_PULL=1
                 ARG_DELORPHANED=1
@@ -206,6 +337,7 @@ then
             -aaa|--all-full)
                 ARG_TEMPBRANCH=1
                 ARG_FETCH=1
+                ARG_HEAD=1
                 ARG_LINK=1
                 ARG_PULL=1
                 ARG_DELORPHANED=1
@@ -217,6 +349,9 @@ then
                 ;;
             -f|--fetch)
                 ARG_FETCH=1
+                ;;
+            --head)
+                ARG_HEAD=1
                 ;;
             -l|--link)
                 ARG_LINK=1
@@ -232,6 +367,10 @@ then
                 ;;
             -s|--summary)
                 ARG_SUMMARY=1
+                ;;
+            -r|--remote)
+                ARG_REMOTE=$2
+                shift
                 ;;
             --force)
                 ARG_FORCE=1
@@ -279,6 +418,7 @@ then
     echo "-t, --temp-branch     Create a temporary branch to make"
     echo "                      operations on the current working copy possible"
     echo "-f, --fetch           Download all current changes"
+    echo "--head                Update main branch / HEAD reference from remote"
     echo "-l, --link            Link local und remote branches with the same name"
     echo "-p, --pull            Merge fetched changes into local branches"
     echo "-d, --delete-orpaned  Delete orphaned local branches"
@@ -287,12 +427,17 @@ then
     echo
     echo "Other options:"
     echo "--force               Do not ask anything. Just do it."
+    echo "-r, --remote           Set the default remote, default: origin"
     echo "-h, --help            Print this help and exit"
     echo
     echo "All operations leave the current working copy alone."
     echo "So you can use this script to sync and do an merge afterwards."
     echo
-    echo "The currently selected branch must be pulled manually."
+    echo "If the --temp-branch option is used the current selected branch"
+    echo "is updated as well. Be careful with uncommitted/unstaged changes/files."
+    echo
+    echo "The currently selected branch must be pulled manually"
+    echo "(except --temp-branch is used)."
     echo
     echo "Changes in the current branch will pushed,"
     echo "if there are no uncommited changes."
@@ -300,6 +445,7 @@ then
 
     exit 0
 fi
+
 
 
 #
@@ -328,6 +474,16 @@ fi
 
 # status of the working copy
 CURRENT_STATUS=$(git status | grep "nothing to commit, working tree clean" > /dev/null 2> /dev/null; echo $?)
+
+# default remote
+REMOTE_EXISTS=$(git remote | grep -P "^$ARG_REMOTE$" 2>&1 > /dev/null; echo $?)
+
+if [ $REMOTE_EXISTS -ne 0 ]
+then
+    echo "The remote '$ARG_REMOTE' does not exist."
+    echo "Please define your default remote by the --remote option."
+    exit 1
+fi
 
 info "Current directory: $(pwd)"
 
@@ -367,6 +523,21 @@ then
     action "Fetch all changes from remote..."
     input "git fetch --all --prune --tags"
     { git fetch --all --prune --tags 2>&3 | output; } 3>&1 1>&2 | error
+fi
+
+
+#
+# -> update HEAD reference / main branch
+#
+
+if [ "$ARG_HEAD" -eq 1 ]
+then
+    # Workflow:
+    # - update the HEAD ref from the given remote to set the main branch
+
+    action "Update main branch from remote '$ARG_REMOTE'"
+    { git remote set-head "$ARG_REMOTE" --auto 2>&3 | output; } 3>&1 1>&2 | error
+
 fi
 
 
