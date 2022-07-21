@@ -6,6 +6,11 @@ A collection of hopefully helpful scripts to work with git repositories.
 
 Just use the existing builds in the `dist/` folder.
 
+## Changelog
+
+- 2022-07-21: Add option to update default branch (aka `HEAD`) from remote
+- 2022-07-21: Add new script `git-cleanup.sh`
+
 ## Build
 
 To make the life of the developer easier, the code is separated in
@@ -31,6 +36,7 @@ Operations:
 -t, --temp-branch     Create a temporary branch to make
                       operations on the current working copy possible
 -f, --fetch           Download all current changes
+--head                Update main branch / HEAD reference from remote
 -l, --link            Link local und remote branches with the same name
 -p, --pull            Merge fetched changes into local branches
 -d, --delete-orpaned  Delete orphaned local branches
@@ -39,24 +45,37 @@ Operations:
 
 Other options:
 --force               Do not ask anything. Just do it.
+-r, --remote           Set the default remote, default: origin
 -h, --help            Print this help and exit
+
+All operations leave the current working copy alone.
+So you can use this script to sync and do an merge afterwards.
+
+If the --temp-branch option is used the current selected branch
+is updated as well. Be careful with uncommitted/unstaged changes/files.
+
+The currently selected branch must be pulled manually
+(except --temp-branch is used).
+
+Changes in the current branch will pushed,
+if there are no uncommited changes.
 ```
 
 ### Perform all local operations (`-a`)
 
-Alias for `git-clean-sync -f -l -p -d -s`.
+Alias for `git-clean-sync -f --head -l -p -d -s`.
 
 But it leaves the current working copy alone.
 
 ### Perform all local and remote operations (`-aa`)
 
-Alias for `git-clean-sync -f -l -p -d -p -s`.
+Alias for `git-clean-sync -f --head -l -p -d -p -s`.
 
 But it leaves the current working copy alone.
 
 ### Perform everything, everywhere (`-aaa`)
 
-Alias for `git-clean-sync -t -f -l -p -d -p -s`.
+Alias for `git-clean-sync -t -f --head -l -p -d -p -s`.
 
 Creates an temporary branch and checks it out so that also the current working copy
 can be updated or deleted (because the branch is orphaned).
@@ -82,6 +101,15 @@ into the local branches.
 ```sh
 # fetch all changes into origin/* branches
 git fetch --all --prune --tags
+```
+
+### Update default branch from remote (`--head`)
+
+This operation fetches the `HEAD` ref from remote and
+updates it on local.
+
+```sh
+git remote set-head origin --auto
 ```
 
 ### Link local and remote branches (`-l`)
@@ -198,3 +226,41 @@ git branch -vv -r
 [<]   origin/master  5918144 Merge branch 'php-sessions-suck' into 'master'
 [<]   origin/ulticon 3114d86 Merge branch 'master' into ulticon
 ```
+
+## git-cleanup.sh
+
+This script cleans up orpahned branches.
+
+```txt
+git cleanup script
+
+The operations will executed in the order as displayed here:
+
+Operations:
+-a, --all                     Perform all operations
+                              operations on the current working copy possible
+--local-branches              Delete local branches unchanged more than X days
+--untracked-remote-branches   Delete untracked remote branches unchanged more than X days
+
+Other options:
+--max-age 60                  Max branch age in days, default is 60
+-r, --remote                  Set the default remote, default: origin
+-h, --help                    Print this help and exit
+```
+
+### Clean local branches (`--local-branches`)
+
+This option will remove all local branches where the last commit is older
+than `--max-age`. The main branch will skipped.
+
+For each branch the script will ask you if deleting is okay. 
+(Unless `--force` is set)
+
+### Clean remote branches (`--untracked-remote-branches`)
+
+This option will remove all untracked remote branches where the last commit is
+older than `--max-age`. The main branch of the respective remote (`HEAD`) will
+skipped.
+
+For each branch the script will ask you if deleting is okay. 
+(Unless `--force` is set)
