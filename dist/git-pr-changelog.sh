@@ -298,12 +298,11 @@ mainbranch() {
 # -> Arguments
 #
 
-ARG_UNTRACKEDREMOTEBRANCHES=0
-ARG_LOCALBRANCHES=0
-ARG_MAXAGEDAYS=60
+ARG_START=""
+ARG_END=""
+ARG_PRSTR=""
+ARG_FORMATADDITION=""
 ARG_REMOTE=origin
-ARG_FORCE=0
-ARG_DRY=0
 ARG_HELP=0
 UNKNOWN_OPTION=0
 
@@ -313,32 +312,32 @@ then
     do
         key="$1"
         case $key in
-            -a|--all)
-                ARG_UNTRACKEDREMOTEBRANCHES=1
-                ARG_LOCALBRANCHES=1
-                ;;
-            --local-branches)
-                ARG_LOCALBRANCHES=1
-                ;;
-            --untracked-remote-branches)
-                ARG_UNTRACKEDREMOTEBRANCHES=1
-                ;;
-            --max-age)
-                ARG_MAXAGEDAYS=$2
+            -s|--start)
+                ARG_START=$2
                 shift
                 ;;
-            -r|--remote)
-                ARG_REMOTE=$2
+            -e|--end)
+                ARG_END=$2
                 shift
                 ;;
-            --dry-run)
-                ARG_DRY=1
+            -f|--format-addition)
+                ARG_FORMATADDITION=$2
+                shift
                 ;;
-            --force)
-                ARG_FORCE=1
+            -p|--pr-string)
+                ARG_PRSTR=$2
+                shift
                 ;;
             -h|--help)
                 ARG_HELP=1
+                ;;
+            --azure-devops)
+                ARG_PRSTR="Merged PR"
+                ARG_FORMATADDITION=" - %s"
+                ;;
+            --gitlab)
+                ARG_PRSTR="See merge request"
+                ARG_FORMATADDITION=" - %b"
                 ;;
             *)
                 # unknown option
@@ -354,7 +353,6 @@ else
 fi
 
 
-
 #
 # -> Print Help
 #
@@ -368,20 +366,13 @@ then
     fi
 
     echo
-    echo "git cleanup script"
+    echo "Create changelogs from Pull Request commit messages"
     echo
-    echo "The operations will executed in the order as displayed here:"
-    echo
-    echo "Operations:"
-    echo "-a, --all                     Perform all operations"
-    echo "                              operations on the current working copy possible"
-    echo "--local-branches              Delete local branches unchanged more than X days"
-    echo "--untracked-remote-branches   Delete untracked remote branches unchanged more than X days"
+    echo "-s, --start        Perform all local operations"
+    echo "-e, --end          Perform all local and remote (push) operations"
     echo
     echo "Other options:"
-    echo "--max-age 60                  Max branch age in days, default is 60"
-    echo "-r, --remote                  Set the default remote, default: origin"
-    echo "-h, --help                    Print this help and exit"
+    echo "-h, --help            Print this help and exit"
     echo
 
     exit 0
@@ -431,123 +422,53 @@ info "Main branch for remote '$ARG_REMOTE': $(mainbranch "$ARG_REMOTE")"
 
 
 
-
-if [ $ARG_DRY -ne 0 ]; then
-    info "Dry-run mode is active"
+if [ -z "$ARG_START" ]; then
+    echo
+    echo "Argument --start is required."
+    exit 1
 fi
 
-#
-# -> Local branches
-#
-
-if [ $ARG_LOCALBRANCHES -eq 1 ]
-then
-    # Workflow:
-    # - loop through all local branches
-    # - if not main branch and last commit older than X days
-    # - delete branch
-
-    DELETEALL=1
-
-    if [ $ARG_FORCE -eq 1 ]; then
-        # skip delete questions if force argument is set
-        DELETEALL=2
-    fi
-
-    action "Delete orphaned local branches..."
-
-    deleteoldlocals() {
-        local branch=$1
-
-        remotemain=$(mainbranch "$ARG_REMOTE")
-        if [ "$remotemain" == "$branch" ]; then
-            # skip main branch
-            info "Skip local branch '$branch', since it's the main branch"
-            return
-        fi
-
-        branchts=$(isreforphaned "refs/heads/$branch" 60)
-        isorphaned=$?
-
-        if [ $isorphaned -eq 0 ]; then
-            multiquestion "Delete local branch '$branch' (last commit: $branchts)" "DELETEALL"
-            answer=$?
-
-            if [ $answer -eq 0 ]; then
-                info "Delete local branch '$branch'"
-                input "git branch -D $branch"
-                if [ $ARG_DRY -eq 0 ]; then
-                    { git branch -D "$branch" 2>&3 | output; } 3>&1 1>&2 | error
-                fi
-            fi
-        else
-            info "Skip local branch '$branch'; last commit: $branchts"
-        fi
-    }
-
-    # call function for all local branches
-    execon_localbranches "deleteoldlocals"
-
+if [ -z "$ARG_END" ]; then
+    echo
+    echo "Argument --end is required."
+    exit 1
 fi
 
-
-#
-# -> Untracked remote branches
-#
-
-if [ $ARG_UNTRACKEDREMOTEBRANCHES -eq 1 ]
-then
-    # Workflow:
-    # - Loop through remote branches
-    # - If branch not checked out
-    # - If branch not the main branch
-    # - If the last commit is older than X days
-    # - Delete the branch on remote
-
-    DELETEALL=1
-
-    if [ $ARG_FORCE -eq 1 ]; then
-        # skip delete questions if force argument is set
-        DELETEALL=2
-    fi
-
-    action "Delete orphaned remote branches..."
-
-    deleteoldremotes() {
-        local remote=$1
-        local branch=$2
-
-        remotemain=$(mainbranch "$remote")
-        if [ "$remotemain" == "$branch" ]; then
-            # skip main branch
-            info "Skip remote branch '$branch', since it's the main branch"
-            return
-        fi
-
-        ref="remotes/$remote/$branch"
-        branchts=$(isreforphaned "$ref" 60)
-        isorphaned=$?
-
-        if [ $isorphaned -eq 0 ]; then
-            multiquestion "Delete remote branch '$ref' (last commit: $branchts)" "DELETEALL"
-            answer=$?
-
-            if [ $answer -eq 0 ]; then
-                info "Delete remote branch '$branch'"
-                input "git push $remote --delete $branch"
-                if [ $ARG_DRY -eq 0 ]; then
-                    { git push "$remote" --delete "$branch" 2>&3 | output; } 3>&1 1>&2 | error
-                fi
-            fi
-        else
-            info "Skip remote branch '$ref'; last commit: $branchts"
-        fi
-    }
-
-    # call function for all untracked remote branches
-    execon_untrackedremotebranches "deleteoldremotes"
-
+if [ -z "$ARG_FORMATADDITION" ] || [ -z "$ARG_PRSTR" ]; then
+    echo
+    echo "Format and pr string or preset required."
+    echo "See --help for more infos."
+    exit 1
 fi
+
+# colors
+#bakheadl='\033[100m'   # Black - Background
+txtheadl='\033[4;94m' # Yellow - underline
+txthl='\033[0;32m' # Green
+txtrst='\033[0m'    # Text Reset
+
+# show choosen range
+echo
+echo -e "${txtheadl}Changelog based on completed Merge Reuqests${txtrst}"
+echo
+echo -e "Project: ${txthl}$(pwd)${txtrst}"
+echo
+echo -e "Current Branch: ${txthl}$(git symbolic-ref --short HEAD)${txtrst}"
+echo -e "Remote: ${txthl}$(git remote get-url --push origin)${txtrst}"
+echo -e "Start Ref: ${txthl}${ARG_START}${txtrst}"
+echo -e "End Ref: ${txthl}${ARG_END}${txtrst}"
+echo
+
+# fancy log messages
+while read LINE; do
+
+    git show -s --format="%h - %ar${ARG_FORMATADDITION}" "$LINE" | tr '\n' ' '
+    echo
+
+done <<< "$(git --no-pager log --pretty=format:"%h" --grep="$ARG_PRSTR" ${ARG_START}..${ARG_END})"
+
+echo
+echo -e "Generated at ${txthl}$(date)${txtrst}"
 
 
 

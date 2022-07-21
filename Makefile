@@ -1,4 +1,4 @@
-all: build_git-clean-sync build_git-cleanup
+all: clean build_git-clean-sync build_git-cleanup build_git-pr-changelog
 
 build_git-clean-sync:
 	@echo "#-> Build git-clean-sync.sh"
@@ -47,6 +47,30 @@ build_git-cleanup:
 	echo "\n\n" >> dist/git-cleanup.sh
 
 	chmod a+x dist/git-cleanup.sh
+
+build_git-pr-changelog:
+	@echo "#-> Build git-pr-changelog.sh"
+
+	mkdir -p dist/
+	cat shared/header.sh > dist/git-pr-changelog.sh
+	echo "\n\n" >> dist/git-pr-changelog.sh
+
+	cat shared/functions.sh >> dist/git-pr-changelog.sh
+	echo "\n\n" >> dist/git-pr-changelog.sh
+
+	cat git-pr-changelog/args.sh >> dist/git-pr-changelog.sh
+	echo "\n\n" >> dist/git-pr-changelog.sh
+
+	cat git-pr-changelog/help.sh >> dist/git-pr-changelog.sh
+	echo "\n\n" >> dist/git-pr-changelog.sh
+
+	cat shared/init.sh >> dist/git-pr-changelog.sh
+	echo "\n\n" >> dist/git-pr-changelog.sh
+
+	cat git-pr-changelog/main.sh >> dist/git-pr-changelog.sh
+	echo "\n\n" >> dist/git-pr-changelog.sh
+
+	chmod a+x dist/git-pr-changelog.sh
 
 clean:
 	rm -rf dist/

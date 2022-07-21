@@ -36,3 +36,4 @@ then
 fi
 
 info "Current directory: $(pwd)"
+info "Main branch for remote '$ARG_REMOTE': $(mainbranch "$ARG_REMOTE")"
