@@ -2,9 +2,14 @@
 
 A collection of hopefully helpful scripts to work with git repositories.
 
+| Script | Description | Download Link |
+|---|---|---|
+| [git-clean-sync.sh](#git-clean-syncsh) | fetch, pull, push, merge, delete merged PR branches, all-in-one | [Download](dist/git-clean-sync.sh) |
+| [git-cleanup.sh](#git-cleanupsh) | Cleanup local and remote branches where the last commit is older than X days | [Download](dist/git-cleanup.sh) |
+
 ## No need to build
 
-Just use the existing builds in the `dist/` folder.
+Just use the latest builds in the `dist/` folder.
 
 ## Changelog
 
